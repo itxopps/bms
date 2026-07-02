@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Tahakum &middot; Camera Battery Monitoring System</title>
+<title>TAHAKUM &middot; Camera Battery Monitoring System</title>
 
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -19,12 +19,12 @@
    schematic corner-bracket framing on data panels.
    ============================================================ */
 :root{
-  --bg-void:      #0b0e13;
+  --bg-void:      #0a0d12;
   --bg-chassis:   #12161d;
-  --bg-panel:     #171d26;
-  --bg-panel-2:   #1c232e;
-  --line:         #262e3b;
-  --line-soft:    #1d2430;
+  --bg-panel:     #1a212c;
+  --bg-panel-2:   #222a37;
+  --line:         #38445a;
+  --line-soft:    #2a3346;
   --text-hi:      #e9edf3;
   --text-mid:     #a4adbd;
   --text-dim:     #626c7e;
@@ -193,8 +193,9 @@ button{ font-family: inherit; cursor: pointer; }
 .panel{
   background: var(--bg-panel);
   border: 1px solid var(--line);
+  border-top: 1px solid rgba(255,255,255,0.06);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-panel);
+  box-shadow: var(--shadow-panel), 0 0 0 1px rgba(0,0,0,0.4);
   position: relative;
 }
 .panel-corners::before, .panel-corners::after,
@@ -257,12 +258,13 @@ button{ font-family: inherit; cursor: pointer; }
 /* ---------- explorer breadcrumb tiles ---------- */
 .tile-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
 .tile{
-  background: var(--bg-panel);
+  background: var(--bg-panel-2);
   border:1px solid var(--line);
   border-radius: var(--radius);
   padding: 18px 14px;
   display:flex; flex-direction:column; align-items:center; gap:8px;
   text-align:center;
+  box-shadow: 0 4px 10px -6px rgba(0,0,0,0.5);
   transition: border-color .12s ease, transform .12s ease, background .12s ease;
 }
 .tile:hover{ border-color: var(--cyan-dim); background: var(--bg-panel-2); transform: translateY(-1px); }
@@ -273,15 +275,16 @@ button{ font-family: inherit; cursor: pointer; }
 /* ---------- battery cards (explorer) ---------- */
 .batt-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
 .batt-card{
-  background: var(--bg-panel);
+  background: var(--bg-panel-2);
   border:1px solid var(--line);
   border-left:3px solid var(--card-c, var(--text-dim));
   border-radius: var(--radius);
   padding: 14px 16px;
   cursor:pointer;
-  transition: border-color .12s ease, background .12s ease;
+  box-shadow: 0 4px 10px -6px rgba(0,0,0,0.5);
+  transition: border-color .12s ease, background .12s ease, transform .12s ease;
 }
-.batt-card:hover{ background: var(--bg-panel-2); }
+.batt-card:hover{ background: #283142; border-color: var(--cyan-dim); transform: translateY(-1px); }
 .batt-card.st-normal{ --card-c: var(--green); }
 .batt-card.st-warning{ --card-c: var(--amber); }
 .batt-card.st-critical{ --card-c: var(--red); }
@@ -356,7 +359,8 @@ table.data-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
 .stat-mini .sl{ font-size:10px; color: var(--text-dim); letter-spacing:.06em; text-transform:uppercase; font-family:var(--font-mono); }
 .stat-mini .sv{ font-family: var(--font-mono); font-size:19px; font-weight:700; margin-top:4px; }
 .chart-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
-.chart-box{ background: var(--bg-panel-2); border:1px solid var(--line); border-radius: var(--radius); padding:12px; height:170px; }
+.chart-box{ background: var(--bg-panel-2); border:1px solid var(--line); border-radius: var(--radius); padding:12px; height:170px; position:relative; overflow:hidden; }
+.chart-box canvas{ position:absolute !important; left:12px; top:12px; right:12px; bottom:12px; width:calc(100% - 24px) !important; height:calc(100% - 24px) !important; }
 
 /* ---------- activity feed ---------- */
 .feed{ display:flex; flex-direction:column; }
@@ -459,7 +463,7 @@ table.data-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
           <div class="panel panel-corners">
             <span class="c2"></span><span class="c3"></span>
             <div class="panel-head"><div><div class="eyebrow">Fleet Status</div><h3>State of Charge Distribution</h3></div></div>
-            <div class="panel-body"><div style="height:220px;"><canvas id="statusDoughnut"></canvas></div></div>
+            <div class="panel-body"><div style="height:220px; position:relative; overflow:hidden;"><canvas id="statusDoughnut"></canvas></div></div>
           </div>
           <div class="panel panel-corners">
             <span class="c2"></span><span class="c3"></span>
