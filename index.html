@@ -1008,8 +1008,17 @@ byId("btnSimSettings").addEventListener("click", toggleSim);
 /* ============================================================
    CLOCK + INIT
    ============================================================ */
-function tickClock(){ byId("clock").textContent = new Date().toLocaleTimeString(); }
-setInterval(tickClock, 1000); tickClock();
+function tickClock() {
+  byId("clock").textContent = new Date().toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+}
+
+setInterval(tickClock, 1000);
+tickClock();
 
 let totalUnits = 0;
 Object.values(DEMO.battsPerZone).forEach(arr=> totalUnits += arr.length);
