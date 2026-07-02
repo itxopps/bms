@@ -1,314 +1,1018 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Camera Battery Monitoring System</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <style>
-    .card { @apply bg-white rounded-md border-2 p-4 shadow-sm transition; }
-    .summaryBox { @apply bg-white border-2 border-slate-400 rounded-md p-4 shadow-sm text-center; }
-  </style>
-</head>
-<body class="bg-slate-100 text-slate-800">
-  <div class="max-w-7xl mx-auto p-4">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Tahakum &middot; Camera Battery Monitoring System</title>
 
-    <!-- Header -->
-    <header class="flex items-center justify-between mb-6">
-<button onclick="window.location.href='index.html'" class="bg-indigo-200 text-black px-3 py-1 rounded-md hover:bg-green-300 transition flex items-center gap-2">
-    <i class="fas fa-home"></i> Home
-  </button>
-      <h1 class="text-2xl font-bold">🔋 Camera Battery Monitoring System</h1>
-      <div class="flex items-center gap-3">
-        <span id="connDot" class="w-3 h-3 rounded-full bg-red-500 inline-block"></span>
-        <span id="connText" class="text-sm">Disconnected</span>
-        <button id="btnSim" class="ml-4 bg-indigo-600 text-white px-3 py-2 rounded-lg">Start Simulator</button>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   BMS-7 DESIGN SYSTEM
+   Industrial telemetry panel aesthetic — dark graphite chassis,
+   cyan signal accent, segmented hardware-style gauges,
+   schematic corner-bracket framing on data panels.
+   ============================================================ */
+:root{
+  --bg-void:      #0b0e13;
+  --bg-chassis:   #12161d;
+  --bg-panel:     #171d26;
+  --bg-panel-2:   #1c232e;
+  --line:         #262e3b;
+  --line-soft:    #1d2430;
+  --text-hi:      #e9edf3;
+  --text-mid:     #a4adbd;
+  --text-dim:     #626c7e;
+  --cyan:         #34d3c9;
+  --cyan-dim:     #1c8f88;
+  --green:        #3ecf8e;
+  --amber:        #f0b64c;
+  --red:          #ef5c5c;
+  --blue:         #5b8def;
+  --purple:       #a58bf0;
+
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body:    'Inter', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+
+  --radius: 3px;
+  --shadow-panel: 0 1px 0 rgba(255,255,255,0.02) inset, 0 10px 24px -12px rgba(0,0,0,0.55);
+}
+
+*{ box-sizing: border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  background: var(--bg-void);
+  color: var(--text-hi);
+  font-family: var(--font-body);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(52,211,201,0.05), transparent 40%),
+    radial-gradient(circle at 100% 100%, rgba(91,141,239,0.04), transparent 45%);
+  background-attachment: fixed;
+}
+a{ color: inherit; text-decoration: none; }
+button{ font-family: inherit; cursor: pointer; }
+::selection{ background: var(--cyan); color:#04231f; }
+
+/* ---------- scrollbar ---------- */
+::-webkit-scrollbar{ width:9px; height:9px; }
+::-webkit-scrollbar-track{ background: transparent; }
+::-webkit-scrollbar-thumb{ background: #2b3341; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover{ background: #3a4456; }
+
+/* ---------- layout shell ---------- */
+.app-shell{ display:flex; min-height:100vh; }
+
+/* ---------- sidebar ---------- */
+.sidebar{
+  width: 236px;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, var(--bg-chassis), #0d1015);
+  border-right: 1px solid var(--line);
+  display:flex;
+  flex-direction: column;
+  position: sticky;
+  top:0;
+  height:100vh;
+}
+.brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding: 22px 20px 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.brand-mark{
+  width:34px; height:34px;
+  border-radius: 7px;
+  background: linear-gradient(145deg, var(--cyan), var(--cyan-dim));
+  display:flex; align-items:center; justify-content:center;
+  color:#052421;
+  font-family: var(--font-display);
+  font-weight:700;
+  font-size:15px;
+  box-shadow: 0 0 0 1px rgba(52,211,201,0.25), 0 6px 14px -6px rgba(52,211,201,0.5);
+}
+.brand-text .t1{ font-family: var(--font-display); font-weight:700; font-size:14.5px; letter-spacing:.02em; line-height:1.15; }
+.brand-text .t2{ font-size:10.5px; color: var(--text-dim); letter-spacing:.06em; text-transform:uppercase; margin-top:1px; }
+
+.nav{ flex:1; padding: 16px 12px; display:flex; flex-direction:column; gap:2px; }
+.nav-label{ font-size:10px; letter-spacing:.12em; text-transform:uppercase; color: var(--text-dim); padding: 10px 10px 6px; }
+.nav-item{
+  display:flex; align-items:center; gap:11px;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  color: var(--text-mid);
+  font-size:13px; font-weight:500;
+  border-left: 2px solid transparent;
+  transition: background .12s ease, color .12s ease, border-color .12s ease;
+}
+.nav-item i{ width:16px; text-align:center; font-size:13px; color: var(--text-dim); transition: color .12s ease; }
+.nav-item:hover{ background: rgba(255,255,255,0.03); color: var(--text-hi); }
+.nav-item.active{
+  background: rgba(52,211,201,0.08);
+  color: var(--text-hi);
+  border-left-color: var(--cyan);
+}
+.nav-item.active i{ color: var(--cyan); }
+.nav-badge{
+  margin-left:auto;
+  font-family: var(--font-mono);
+  font-size:10.5px;
+  padding:1px 6px;
+  border-radius: 10px;
+  background: rgba(239,92,92,0.15);
+  color: var(--red);
+  border:1px solid rgba(239,92,92,0.3);
+}
+
+.sidebar-foot{
+  padding: 14px 18px 18px;
+  border-top: 1px solid var(--line-soft);
+}
+.conn-row{ display:flex; align-items:center; gap:8px; font-size:12px; color: var(--text-mid); }
+.conn-dot{ width:8px; height:8px; border-radius:50%; background: var(--red); box-shadow: 0 0 0 3px rgba(239,92,92,0.15); flex-shrink:0; }
+.conn-dot.on{ background: var(--green); box-shadow: 0 0 0 3px rgba(62,207,142,0.18); animation: pulse-dot 2s infinite; }
+@keyframes pulse-dot{ 0%,100%{ opacity:1; } 50%{ opacity:.45; } }
+.broker-id{ font-family: var(--font-mono); font-size:10px; color: var(--text-dim); margin-top:4px; }
+
+/* ---------- main column ---------- */
+.main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+
+.topbar{
+  height: 62px;
+  flex-shrink:0;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  padding: 0 26px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(18,22,29,0.7);
+  backdrop-filter: blur(6px);
+  position: sticky;
+  top:0;
+  z-index:20;
+}
+.topbar-title{ display:flex; flex-direction:column; gap:2px; }
+.topbar-title h1{ font-family: var(--font-display); font-size:17px; font-weight:600; margin:0; letter-spacing:.01em; }
+.crumbs{ font-size:11.5px; color: var(--text-dim); font-family: var(--font-mono); }
+.crumbs a{ color: var(--text-mid); }
+.crumbs a:hover{ color: var(--cyan); }
+
+.topbar-right{ display:flex; align-items:center; gap:14px; }
+.clock{ font-family: var(--font-mono); font-size:12.5px; color: var(--text-mid); letter-spacing:.03em; }
+.btn{
+  display:inline-flex; align-items:center; gap:7px;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border:1px solid var(--line);
+  background: var(--bg-panel-2);
+  color: var(--text-hi);
+  font-size:12.5px; font-weight:600;
+  transition: all .12s ease;
+}
+.btn:hover{ border-color:#3a4456; background:#212938; }
+.btn.primary{ background: linear-gradient(145deg, var(--cyan), var(--cyan-dim)); color:#04231f; border-color:transparent; }
+.btn.primary:hover{ filter:brightness(1.08); }
+.btn.danger{ background: rgba(239,92,92,0.12); color: var(--red); border-color: rgba(239,92,92,0.3); }
+
+.content{ padding: 26px; flex:1; }
+.page{ display:none; animation: fade-in .25s ease; }
+.page.active{ display:block; }
+@keyframes fade-in{ from{ opacity:0; transform: translateY(4px); } to{ opacity:1; transform:none; } }
+
+/* ---------- panel / card system ---------- */
+.panel{
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-panel);
+  position: relative;
+}
+.panel-corners::before, .panel-corners::after,
+.panel-corners .c2, .panel-corners .c3{
+  content:""; position:absolute; width:9px; height:9px;
+  border-color: var(--cyan-dim); opacity:.55; pointer-events:none;
+}
+.panel-corners::before{ top:-1px; left:-1px; border-top:2px solid; border-left:2px solid; }
+.panel-corners::after{ bottom:-1px; right:-1px; border-bottom:2px solid; border-right:2px solid; }
+.panel-corners .c2{ top:-1px; right:-1px; border-top:2px solid; border-right:2px solid; }
+.panel-corners .c3{ bottom:-1px; left:-1px; border-bottom:2px solid; border-left:2px solid; }
+
+.panel-head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.panel-head .eyebrow{ font-size:10px; letter-spacing:.1em; text-transform:uppercase; color: var(--text-dim); font-family:var(--font-mono); }
+.panel-head h3{ margin:2px 0 0; font-family: var(--font-display); font-size:13.5px; font-weight:600; }
+.panel-body{ padding:16px; }
+
+/* ---------- KPI strip ---------- */
+.kpi-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+.kpi{
+  background: var(--bg-panel);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  position:relative;
+  overflow:hidden;
+}
+.kpi::before{
+  content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
+  background: var(--kpi-c, var(--cyan));
+}
+.kpi .k-label{ font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color: var(--text-dim); font-family: var(--font-mono); }
+.kpi .k-value{ font-family: var(--font-display); font-size:30px; font-weight:700; margin-top:6px; letter-spacing:-.01em; }
+.kpi .k-sub{ font-size:11.5px; color: var(--text-mid); margin-top:3px; }
+.kpi.c-cyan{ --kpi-c: var(--cyan); }
+.kpi.c-green{ --kpi-c: var(--green); }
+.kpi.c-amber{ --kpi-c: var(--amber); }
+.kpi.c-red{ --kpi-c: var(--red); }
+
+/* ---------- status pill ---------- */
+.pill{
+  display:inline-flex; align-items:center; gap:5px;
+  font-family: var(--font-mono); font-size:10.5px; font-weight:600;
+  padding: 3px 8px; border-radius: 3px; letter-spacing:.03em; text-transform:uppercase;
+}
+.pill::before{ content:""; width:5px; height:5px; border-radius:50%; }
+.pill.normal{ background: rgba(62,207,142,.12); color: var(--green); border:1px solid rgba(62,207,142,.28); }
+.pill.normal::before{ background: var(--green); }
+.pill.warning{ background: rgba(240,182,76,.12); color: var(--amber); border:1px solid rgba(240,182,76,.28); }
+.pill.warning::before{ background: var(--amber); }
+.pill.critical{ background: rgba(239,92,92,.12); color: var(--red); border:1px solid rgba(239,92,92,.28); }
+.pill.critical::before{ background: var(--red); }
+.pill.unknown{ background: rgba(98,108,126,.15); color: var(--text-dim); border:1px solid var(--line); }
+.pill.unknown::before{ background: var(--text-dim); }
+
+/* ---------- explorer breadcrumb tiles ---------- */
+.tile-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+.tile{
+  background: var(--bg-panel);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 14px;
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  text-align:center;
+  transition: border-color .12s ease, transform .12s ease, background .12s ease;
+}
+.tile:hover{ border-color: var(--cyan-dim); background: var(--bg-panel-2); transform: translateY(-1px); }
+.tile i{ font-size:19px; color: var(--cyan); }
+.tile .tile-name{ font-weight:600; font-size:13px; }
+.tile .tile-sub{ font-size:10.5px; color: var(--text-dim); font-family: var(--font-mono); }
+
+/* ---------- battery cards (explorer) ---------- */
+.batt-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
+.batt-card{
+  background: var(--bg-panel);
+  border:1px solid var(--line);
+  border-left:3px solid var(--card-c, var(--text-dim));
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  cursor:pointer;
+  transition: border-color .12s ease, background .12s ease;
+}
+.batt-card:hover{ background: var(--bg-panel-2); }
+.batt-card.st-normal{ --card-c: var(--green); }
+.batt-card.st-warning{ --card-c: var(--amber); }
+.batt-card.st-critical{ --card-c: var(--red); }
+.batt-card-top{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; }
+.batt-id{ font-family: var(--font-mono); font-weight:600; font-size:13px; }
+.batt-loc{ font-size:10.5px; color: var(--text-dim); margin-top:2px; }
+
+/* segmented gauge — signature element */
+.seg-gauge{ display:flex; gap:2px; height:16px; margin: 10px 0 8px; }
+.seg{ flex:1; border-radius:1.5px; background: #232b38; border: 1px solid #2c3543; }
+.seg.on-normal{ background: var(--green); border-color: var(--green); box-shadow: 0 0 6px -1px rgba(62,207,142,.7); }
+.seg.on-warning{ background: var(--amber); border-color: var(--amber); box-shadow: 0 0 6px -1px rgba(240,182,76,.7); }
+.seg.on-critical{ background: var(--red); border-color: var(--red); box-shadow: 0 0 6px -1px rgba(239,92,92,.7); }
+
+.batt-readout-row{ display:flex; justify-content:space-between; align-items:baseline; }
+.readout-soc{ font-family: var(--font-mono); font-size:20px; font-weight:700; }
+.readout-mini{ display:flex; gap:12px; }
+.readout-mini .r{ text-align:right; }
+.readout-mini .r .rv{ font-family: var(--font-mono); font-size:12px; font-weight:600; }
+.readout-mini .r .rl{ font-size:9px; color: var(--text-dim); text-transform:uppercase; letter-spacing:.05em; }
+
+/* ---------- table ---------- */
+table.data-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+.data-table th{
+  text-align:left; font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+  color: var(--text-dim); font-family: var(--font-mono); font-weight:500;
+  padding: 8px 12px; border-bottom:1px solid var(--line);
+  cursor:pointer; user-select:none;
+}
+.data-table th:hover{ color: var(--text-hi); }
+.data-table td{ padding: 10px 12px; border-bottom:1px solid var(--line-soft); }
+.data-table tr:hover td{ background: rgba(255,255,255,0.02); }
+.data-table td.mono{ font-family: var(--font-mono); }
+.row-clickable{ cursor:pointer; }
+
+/* ---------- battery detail icon ---------- */
+.detail-batt-box{
+  position:relative; width:150px; height:64px;
+  border:4px solid var(--line); border-radius:8px; overflow:hidden;
+  background: #0e1319;
+}
+.detail-batt-box::after{
+  content:""; position:absolute; right:-11px; top:22px; width:6px; height:20px;
+  background: var(--line); border-radius:2px;
+}
+.detail-batt-fill{ position:absolute; left:0; top:0; bottom:0; width:0%; transition: width .5s ease; }
+.detail-batt-text{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-family: var(--font-mono); font-weight:700; font-size:19px; color:#eef;
+  text-shadow: 0 1px 3px rgba(0,0,0,.6);
+}
+
+/* ---------- modal ---------- */
+.modal-overlay{
+  position:fixed; inset:0; background: rgba(6,8,11,0.72); backdrop-filter: blur(3px);
+  display:none; align-items:flex-start; justify-content:center; padding: 40px 20px; overflow-y:auto; z-index:100;
+}
+.modal-overlay.open{ display:flex; }
+.modal-panel{
+  width:100%; max-width: 880px;
+  background: var(--bg-panel); border:1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 30px 60px -20px rgba(0,0,0,0.7);
+  animation: modal-in .18s ease;
+}
+@keyframes modal-in{ from{ opacity:0; transform: translateY(8px) scale(.99); } to{ opacity:1; transform:none; } }
+.modal-head{ display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line-soft); }
+.modal-close{ width:28px; height:28px; border-radius:5px; display:flex; align-items:center; justify-content:center; color: var(--text-dim); border:1px solid var(--line); background:var(--bg-panel-2); }
+.modal-close:hover{ color: var(--text-hi); border-color:#3a4456; }
+.modal-body{ padding:22px; }
+.stat-mini-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:22px 0; }
+.stat-mini{ background: var(--bg-panel-2); border:1px solid var(--line); border-radius: var(--radius); padding:12px 14px; }
+.stat-mini .sl{ font-size:10px; color: var(--text-dim); letter-spacing:.06em; text-transform:uppercase; font-family:var(--font-mono); }
+.stat-mini .sv{ font-family: var(--font-mono); font-size:19px; font-weight:700; margin-top:4px; }
+.chart-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+.chart-box{ background: var(--bg-panel-2); border:1px solid var(--line); border-radius: var(--radius); padding:12px; height:170px; }
+
+/* ---------- activity feed ---------- */
+.feed{ display:flex; flex-direction:column; }
+.feed-row{ display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line-soft); font-size:12px; }
+.feed-row:last-child{ border-bottom:none; }
+.feed-dot{ width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.feed-loc{ color: var(--text-mid); font-family: var(--font-mono); font-size:11px; }
+.feed-time{ margin-left:auto; color: var(--text-dim); font-family: var(--font-mono); font-size:10.5px; }
+
+/* ---------- settings page ---------- */
+.settings-grid{ display:grid; grid-template-columns: 1.2fr 1fr; gap:16px; align-items:start; }
+.kv-row{ display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--line-soft); font-size:12.5px; }
+.kv-row:last-child{ border-bottom:none; }
+.kv-row .kk{ color: var(--text-dim); }
+.kv-row .kv{ font-family: var(--font-mono); color: var(--text-hi); }
+.toggle-row{ display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--line-soft); }
+.toggle-row:last-child{ border-bottom:none; }
+.toggle-row .tt{ font-size:13px; font-weight:500; }
+.toggle-row .ts{ font-size:11px; color: var(--text-dim); margin-top:2px; }
+
+/* ---------- empty state ---------- */
+.empty-state{ text-align:center; padding: 50px 20px; color: var(--text-dim); }
+.empty-state i{ font-size:26px; margin-bottom:10px; display:block; color: var(--line); }
+
+/* ---------- responsive ---------- */
+@media (max-width: 980px){
+  .kpi-grid{ grid-template-columns: repeat(2,1fr); }
+  .chart-grid, .stat-mini-grid{ grid-template-columns: repeat(2,1fr); }
+  .settings-grid{ grid-template-columns: 1fr; }
+}
+@media (max-width: 720px){
+  .sidebar{ position: fixed; left:-236px; z-index:200; transition: left .2s ease; box-shadow: 20px 0 40px rgba(0,0,0,.4); }
+  .sidebar.open{ left:0; }
+  .kpi-grid{ grid-template-columns: 1fr 1fr; }
+  .chart-grid{ grid-template-columns: 1fr; }
+  .content{ padding:16px; }
+  .topbar{ padding:0 14px; }
+}
+.hamburger{ display:none; }
+@media (max-width:720px){ .hamburger{ display:flex; } }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">TH</div>
+      <div class="brand-text">
+        <div class="t1">TAHAKUM &#8209; KSA</div>
+        <div class="t2">Camera Battery Network</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-label">Monitor</div>
+      <a class="nav-item active" data-page="dashboard"><i class="fas fa-gauge-high"></i>Dashboard</a>
+      <a class="nav-item" data-page="explorer"><i class="fas fa-sitemap"></i>Explorer</a>
+      <a class="nav-item" data-page="alerts"><i class="fas fa-triangle-exclamation"></i>Alerts<span class="nav-badge" id="navAlertBadge">0</span></a>
+      <div class="nav-label">System</div>
+      <a class="nav-item" data-page="settings"><i class="fas fa-sliders"></i>Settings</a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="conn-row"><span class="conn-dot" id="connDot"></span><span id="connText">Disconnected</span></div>
+      <div class="broker-id">broker.hivemq.com:8884</div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <button class="btn hamburger" id="btnHamburger" style="padding:8px 10px;"><i class="fas fa-bars"></i></button>
+        <div class="topbar-title">
+          <h1 id="pageTitle">Dashboard</h1>
+          <div class="crumbs" id="pageCrumbs">System Overview</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="clock" id="clock">--:--:--</span>
+        <button class="btn primary" id="btnSim"><i class="fas fa-play"></i> Start Simulator</button>
       </div>
     </header>
 
+    <div class="content">
 
-    <!-- Summary Header -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-      <div class="summaryBox">
-        <div class="text-xs text-slate-500">Total Batteries</div>
-        <div id="sumTotal" class="text-2xl font-bold">0</div>
-      </div>
-      <div class="summaryBox">
-        <div class="text-xs text-slate-500">Normal (>50%)</div>
-        <div id="sumNormal" class="text-2xl font-bold text-green-600">0</div>
-      </div>
-      <div class="summaryBox">
-        <div class="text-xs text-slate-500">Warning (20–50%)</div>
-        <div id="sumWarn" class="text-2xl font-bold text-yellow-600">0</div>
-      </div>
-      <div class="summaryBox">
-        <div class="text-xs text-slate-500">Critical (≤20%)</div>
-        <div id="sumCrit" class="text-2xl font-bold text-red-600">0</div>
-      </div>
-    </div>
-
-    <!-- Breadcrumbs -->
-    <div id="breadcrumbs" class="text-sm text-slate-500 mb-4"></div>
-
-    <!-- Content Grid -->
-    <div id="content" class="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"></div>
-
-    <!-- Battery Detail -->
-    <div id="detail" class="hidden">
-      <div class="bg-white border-2 border-slate-400 rounded-lg shadow p-6 mt-8">
-        <div class="flex items-center justify-between">
-          <h2 id="detailTitle" class="text-xl font-semibold"></h2>
-          <button id="btnCloseDetail" class="text-slate-500 hover:text-slate-700">✕</button>
+      <!-- ============ PAGE: DASHBOARD ============ -->
+      <section class="page active" id="page-dashboard">
+        <div class="kpi-grid">
+          <div class="kpi c-cyan"><div class="k-label">Total Units</div><div class="k-value" id="kTotal">0</div><div class="k-sub">across 3 cities</div></div>
+          <div class="kpi c-green"><div class="k-label">Normal</div><div class="k-value" id="kNormal">0</div><div class="k-sub">SoC above 50%</div></div>
+          <div class="kpi c-amber"><div class="k-label">Warning</div><div class="k-value" id="kWarn">0</div><div class="k-sub">SoC 20&ndash;50%</div></div>
+          <div class="kpi c-red"><div class="k-label">Critical</div><div class="k-value" id="kCrit">0</div><div class="k-sub">SoC 20% or below</div></div>
         </div>
 
-        <!-- Battery icon -->
-        <div class="flex justify-center mt-6 mb-4">
-          <div id="detailBatteryBox" class="relative w-32 h-14 border-4 border-slate-400 rounded-md overflow-hidden">
-            <div id="detailBatteryFill" class="absolute top-0 left-0 h-full bg-green-500" style="width:0%"></div>
-            <div class="absolute inset-0 flex items-center justify-center text-lg font-bold text-black" id="detailBatteryText">--%</div>
-            <div class="absolute right-[-10px] top-1/4 w-3 h-6 bg-slate-400 rounded"></div>
+        <div style="display:grid; grid-template-columns: 1.3fr 1fr; gap:16px; margin-bottom:16px;">
+          <div class="panel panel-corners">
+            <span class="c2"></span><span class="c3"></span>
+            <div class="panel-head"><div><div class="eyebrow">Fleet Status</div><h3>State of Charge Distribution</h3></div></div>
+            <div class="panel-body"><div style="height:220px;"><canvas id="statusDoughnut"></canvas></div></div>
+          </div>
+          <div class="panel panel-corners">
+            <span class="c2"></span><span class="c3"></span>
+            <div class="panel-head"><div><div class="eyebrow">Priority</div><h3>Lowest State of Charge</h3></div></div>
+            <div class="panel-body" id="lowSocList"><div class="empty-state"><i class="fas fa-battery-empty"></i>Waiting for telemetry&hellip;</div></div>
           </div>
         </div>
 
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
-          <div class="card"><div class="text-xs text-slate-500">SoC</div><div id="dSoc" class="text-xl font-bold">--%</div></div>
-          <div class="card"><div class="text-xs text-slate-500">Voltage</div><div id="dVolt" class="text-xl font-bold">-- V</div></div>
-          <div class="card"><div class="text-xs text-slate-500">Current</div><div id="dCurr" class="text-xl font-bold">-- A</div></div>
-          <div class="card"><div class="text-xs text-slate-500">Temperature</div><div id="dTemp" class="text-xl font-bold">-- °C</div></div>
+        <div class="panel panel-corners">
+          <span class="c2"></span><span class="c3"></span>
+          <div class="panel-head"><div><div class="eyebrow">Live Feed</div><h3>Recent Telemetry</h3></div><span class="pill unknown" id="feedCount">0 events</span></div>
+          <div class="panel-body"><div class="feed" id="activityFeed"><div class="empty-state"><i class="fas fa-signal"></i>No messages received yet</div></div></div>
         </div>
+      </section>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-          <div class="card"><canvas id="socChart"></canvas></div>
-          <div class="card"><canvas id="voltChart"></canvas></div>
-          <div class="card"><canvas id="currChart"></canvas></div>
+      <!-- ============ PAGE: EXPLORER ============ -->
+      <section class="page" id="page-explorer">
+        <div class="panel panel-corners" style="margin-bottom:16px;">
+          <span class="c2"></span><span class="c3"></span>
+          <div class="panel-head">
+            <div><div class="eyebrow">Navigate</div><h3 id="explorerCrumbTitle">Cities</h3></div>
+            <div class="crumbs" id="explorerCrumbs"></div>
+          </div>
+          <div class="panel-body" id="explorerContent"></div>
         </div>
+      </section>
+
+      <!-- ============ PAGE: ALERTS ============ -->
+      <section class="page" id="page-alerts">
+        <div class="panel panel-corners">
+          <span class="c2"></span><span class="c3"></span>
+          <div class="panel-head">
+            <div><div class="eyebrow">Attention Required</div><h3>Warning &amp; Critical Units</h3></div>
+            <span class="pill unknown" id="alertsCount">0 units</span>
+          </div>
+          <div class="panel-body">
+            <div style="overflow-x:auto;">
+              <table class="data-table" id="alertsTable">
+                <thead>
+                  <tr>
+                    <th data-sort="batt">Unit</th>
+                    <th data-sort="loc">Location</th>
+                    <th data-sort="soc">SoC</th>
+                    <th data-sort="voltage">Voltage</th>
+                    <th data-sort="current">Current</th>
+                    <th data-sort="temp">Temp</th>
+                    <th data-sort="status">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="alertsBody"></tbody>
+              </table>
+              <div class="empty-state" id="alertsEmpty" style="display:none;"><i class="fas fa-circle-check"></i>All units nominal &mdash; nothing needs attention</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PAGE: SETTINGS ============ -->
+      <section class="page" id="page-settings">
+        <div class="settings-grid">
+          <div class="panel panel-corners">
+            <span class="c2"></span><span class="c3"></span>
+            <div class="panel-head"><div><div class="eyebrow">Broker</div><h3>Connection Parameters</h3></div></div>
+            <div class="panel-body">
+              <div class="kv-row"><span class="kk">Protocol</span><span class="kv">MQTT over WSS</span></div>
+              <div class="kv-row"><span class="kk">Host</span><span class="kv">broker.hivemq.com:8884</span></div>
+              <div class="kv-row"><span class="kk">Subscribe Topic</span><span class="kv">bms/+/+/+/+</span></div>
+              <div class="kv-row"><span class="kk">Client ID</span><span class="kv" id="settClientId">&mdash;</span></div>
+              <div class="kv-row"><span class="kk">Retained History</span><span class="kv">200 samples / unit</span></div>
+              <div class="kv-row"><span class="kk">Status</span><span class="kv" id="settStatus">Disconnected</span></div>
+            </div>
+          </div>
+
+          <div class="panel panel-corners">
+            <span class="c2"></span><span class="c3"></span>
+            <div class="panel-head"><div><div class="eyebrow">Test Data</div><h3>Simulator</h3></div></div>
+            <div class="panel-body">
+              <div class="toggle-row">
+                <div><div class="tt">Publish synthetic telemetry</div><div class="ts">Broadcasts every 5 seconds to all units</div></div>
+                <button class="btn primary" id="btnSimSettings"><i class="fas fa-play"></i> Start</button>
+              </div>
+              <div class="toggle-row">
+                <div><div class="tt">Fleet size</div><div class="ts" id="fleetSizeNote">&mdash;</div></div>
+              </div>
+              <div class="toggle-row">
+                <div><div class="tt">Threshold &mdash; Warning</div><div class="ts">SoC between 20% and 50%</div></div>
+                <span class="pill warning">20&ndash;50%</span>
+              </div>
+              <div class="toggle-row">
+                <div><div class="tt">Threshold &mdash; Critical</div><div class="ts">SoC at or below 20%</div></div>
+                <span class="pill critical">&le;20%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- ============ BATTERY DETAIL MODAL ============ -->
+<div class="modal-overlay" id="detailOverlay">
+  <div class="modal-panel">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow" style="font-size:10px; color:var(--text-dim); font-family:var(--font-mono); letter-spacing:.08em; text-transform:uppercase;">Unit Detail</div>
+        <h2 id="detailTitle" style="margin:2px 0 0; font-family:var(--font-display); font-size:16px;">&mdash;</h2>
+      </div>
+      <button class="modal-close" id="btnCloseDetail"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex; justify-content:center;">
+        <div class="detail-batt-box" id="detailBatteryBox">
+          <div class="detail-batt-fill" id="detailBatteryFill"></div>
+          <div class="detail-batt-text" id="detailBatteryText">--%</div>
+        </div>
+      </div>
+
+      <div class="stat-mini-grid">
+        <div class="stat-mini"><div class="sl">SoC</div><div class="sv" id="dSoc">--%</div></div>
+        <div class="stat-mini"><div class="sl">Voltage</div><div class="sv" id="dVolt">-- V</div></div>
+        <div class="stat-mini"><div class="sl">Current</div><div class="sv" id="dCurr">-- A</div></div>
+        <div class="stat-mini"><div class="sl">Temperature</div><div class="sv" id="dTemp">-- &deg;C</div></div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-box"><canvas id="socChart"></canvas></div>
+        <div class="chart-box"><canvas id="voltChart"></canvas></div>
+        <div class="chart-box"><canvas id="currChart"></canvas></div>
       </div>
     </div>
   </div>
-
-
-  <!-- Footer -->
-  <footer class="fixed bottom-0 left-0 w-full bg-white border-t py-0 text-center text-sm text-slate-500 shadow-md">
-    Developed by <span class="font-semibold">Muhammad Faisal</span> — Powered by 
-    <span class="font-bold text-indigo-600">LEGENDARY VISION</span>
-  </footer>
+</div>
 
 <script>
-/* ---------------- CONFIG ---------------- */
+/* ============================================================
+   CONFIG
+   ============================================================ */
 const BROKER_WS = "wss://broker.hivemq.com:8884/mqtt";
 const SUB_TOPIC = "bms/+/+/+/+";
 const RETAIN_HISTORY = 200;
 
+Chart.defaults.color = "#a4adbd";
+Chart.defaults.borderColor = "#262e3b";
+Chart.defaults.font.family = "'JetBrains Mono', monospace";
+Chart.defaults.font.size = 10;
+
 const DEMO = {
-  cities: ["RIYADH","JEDDAH","DAMAM"],
+  cities: ["RIYADH","JEDDAH","DAMMAM"],
   regions: ["Region 1","Region 2","Region 3"],
   zones: ["East","West"],
   battsPerZone: {}
 };
-
-// Generate random number of batteries per zone (8–20)
 DEMO.cities.forEach(city=>{
   DEMO.regions.forEach(region=>{
     DEMO.zones.forEach(zone=>{
-      const count=Math.floor(Math.random()*(20-8+1))+8;
+      const count = Math.floor(Math.random()*(20-8+1))+8;
       DEMO.battsPerZone[`${city}/${region}/${zone}`] =
-        Array.from({length:count},(_,i)=>` 🔋 BT_${String(i+1).padStart(2,'0')}`);
+        Array.from({length:count},(_,i)=>`BT_${String(i+1).padStart(2,'0')}`);
     });
   });
 });
 
-const state = { data:new Map(), conn:false, path:[] };
+const state = { data: new Map(), conn:false, explorerPath: [], feed: [], sortKey:'soc', sortDir:1 };
 
 function keyOf(city,region,zone,batt){ return `${city}/${region}/${zone}/${batt}`; }
-function parseTopic(topic){ const p=topic.split("/"); return { city:p[1],region:p[2],zone:p[3],batt:p[4]}; }
+function parseTopic(topic){ const p = topic.split("/"); return { city:p[1], region:p[2], zone:p[3], batt:p[4] }; }
+function statusOf(soc){ if(typeof soc!=="number") return "unknown"; if(soc>50) return "normal"; if(soc>20) return "warning"; return "critical"; }
+function byId(id){ return document.getElementById(id); }
 
-/* -------- MQTT -------- */
-const clientId="web_"+Math.random().toString(16).slice(2);
-const client=mqtt.connect(BROKER_WS,{clientId,clean:true,reconnectPeriod:2000});
+/* ============================================================
+   MQTT
+   ============================================================ */
+const clientId = "bms7_" + Math.random().toString(16).slice(2,10);
+byId("settClientId").textContent = clientId;
+const client = mqtt.connect(BROKER_WS, { clientId, clean:true, reconnectPeriod:2000 });
 
-client.on("connect",()=>{state.conn=true;renderConn();client.subscribe(SUB_TOPIC);});
-client.on("reconnect",()=>{state.conn=false;renderConn();});
-client.on("close",()=>{state.conn=false;renderConn();});
-client.on("message",(topic,payload)=>{
+client.on("connect", ()=>{ state.conn = true; renderConn(); client.subscribe(SUB_TOPIC); });
+client.on("reconnect", ()=>{ state.conn = false; renderConn(); });
+client.on("close", ()=>{ state.conn = false; renderConn(); });
+client.on("message", (topic, payload)=>{
   try{
-    const d=JSON.parse(payload.toString());
-    const {city,region,zone,batt}=parseTopic(topic);
-    const k=keyOf(city,region,zone,batt);
-    if(!state.data.has(k)) state.data.set(k,{city,region,zone,batt,hist:{soc:[],voltage:[],current:[],labels:[]}});
-    const obj=state.data.get(k);
-    obj.soc=d.soc;obj.voltage=d.voltage;obj.current=d.current;obj.temp=d.temp;
-    const label=new Date().toLocaleTimeString();
-    pushHist(obj.hist.labels,label);pushHist(obj.hist.soc,d.soc);pushHist(obj.hist.voltage,d.voltage);pushHist(obj.hist.current,d.current);
-    if(detailOpenFor(k)) updateDetail(obj);
-    render(); updateSummary();
+    const d = JSON.parse(payload.toString());
+    const { city, region, zone, batt } = parseTopic(topic);
+    if(!city || !batt) return;
+    const k = keyOf(city,region,zone,batt);
+    if(!state.data.has(k)) state.data.set(k, { city,region,zone,batt, hist:{soc:[],voltage:[],current:[],labels:[]} });
+    const obj = state.data.get(k);
+    obj.soc = d.soc; obj.voltage = d.voltage; obj.current = d.current; obj.temp = d.temp;
+    const label = new Date().toLocaleTimeString();
+    pushHist(obj.hist.labels, label); pushHist(obj.hist.soc, d.soc);
+    pushHist(obj.hist.voltage, d.voltage); pushHist(obj.hist.current, d.current);
+
+    pushFeed(obj);
+    if(currentKey === k) updateDetail(obj);
+    renderCurrentPage();
   }catch(e){}
 });
-function pushHist(arr,val){arr.push(val);if(arr.length>RETAIN_HISTORY)arr.shift();}
-function renderConn(){document.getElementById("connDot").className="w-3 h-3 rounded-full "+(state.conn?"bg-emerald-500":"bg-red-500");document.getElementById("connText").textContent=state.conn?"Connected":"Disconnected";}
-
-/* -------- NAVIGATION -------- */
-const content=document.getElementById("content");const breadcrumbs=document.getElementById("breadcrumbs");
-function setPath(p){state.path=p;render();}
-function render(){
-  const p=state.path;
-  breadcrumbs.innerHTML=[`<a href="#" onclick="setPath([])">Cities</a>`,
-    p[0]?` / <a href="#" onclick="setPath(['${p[0]}'])">${p[0]}</a>`:"",
-    p[1]?` / <a href="#" onclick="setPath(['${p[0]}','${p[1]}'])">${p[1]}</a>`:"",
-    p[2]?` / <span>${p[2]}</span>`:""].join("");
-  content.innerHTML="";
-  if(p.length===0)renderCities();
-  else if(p.length===1)renderRegions(p[0]);
-  else if(p.length===2)renderZones(p[0],p[1]);
-  else if(p.length===3)renderBatteries(p[0],p[1],p[2]);
+function pushHist(arr,val){ arr.push(val); if(arr.length>RETAIN_HISTORY) arr.shift(); }
+function renderConn(){
+  byId("connDot").className = "conn-dot" + (state.conn ? " on" : "");
+  byId("connText").textContent = state.conn ? "Live" : "Disconnected";
+  byId("settStatus").textContent = state.conn ? "Connected" : "Disconnected";
 }
-function renderCities(){DEMO.cities.forEach(city=>{const el=document.createElement("div");el.className="card border-slate-400 hover:border-indigo-500";el.onclick=()=>setPath([city]);el.innerHTML=`<div class="flex flex-col items-center h-32 justify-center"><div class="text-4xl mb-2">🏙️</div><div class="font-semibold text-lg">${city}</div></div>`;content.appendChild(el);});}
-function renderRegions(city){DEMO.regions.forEach(region=>{const el=document.createElement("div");el.className="card border-slate-400 hover:border-indigo-500";el.onclick=()=>setPath([city,region]);el.innerHTML=`<div class="flex flex-col items-center h-32 justify-center"><div class="text-4xl mb-2">🗺️</div><div class="font-semibold text-lg">${region}</div><div class="text-xs text-slate-500">${city}</div></div>`;content.appendChild(el);});}
-function renderZones(city,region){DEMO.zones.forEach(zone=>{const el=document.createElement("div");el.className="card border-slate-400 hover:border-indigo-500";el.onclick=()=>setPath([city,region,zone]);el.innerHTML=`<div class="flex flex-col items-center h-32 justify-center"><div class="text-4xl mb-2">📍</div><div class="font-semibold text-lg">Zone ${zone}</div><div class="text-xs text-slate-500">${city}/${region}</div></div>`;content.appendChild(el);});}
 
-function renderBatteries(city,region,zone){
-  content.innerHTML="";
-  const batts=DEMO.battsPerZone[`${city}/${region}/${zone}`]||[];
-  batts.forEach(batt=>{
-    const k=keyOf(city,region,zone,batt);
-    const d=state.data.get(k)||{};
-    const soc=d.soc??"--";const volt=d.voltage??"--";const curr=d.current??"--";
+/* ============================================================
+   ACTIVITY FEED
+   ============================================================ */
+function pushFeed(obj){
+  state.feed.unshift({ ...obj, t: new Date() });
+  if(state.feed.length > 40) state.feed.pop();
+}
 
-    const el=document.createElement("div");
-    el.className="relative flex flex-col justify-between card hover:shadow-lg border-2";
+/* ============================================================
+   PAGE NAVIGATION
+   ============================================================ */
+const PAGE_META = {
+  dashboard: { title:"Dashboard", crumb:"System Overview" },
+  explorer:  { title:"Explorer", crumb:"Browse fleet by location" },
+  alerts:    { title:"Alerts", crumb:"Units needing attention" },
+  settings:  { title:"Settings", crumb:"Broker &amp; simulator configuration" },
+};
+let currentPage = "dashboard";
+document.querySelectorAll(".nav-item").forEach(item=>{
+  item.addEventListener("click", ()=>{
+    document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
+    item.classList.add("active");
+    currentPage = item.dataset.page;
+    document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+    byId("page-"+currentPage).classList.add("active");
+    byId("pageTitle").textContent = PAGE_META[currentPage].title;
+    byId("pageCrumbs").innerHTML = PAGE_META[currentPage].crumb;
+    sidebar.classList.remove("open");
+    renderCurrentPage();
+  });
+});
+function renderCurrentPage(){
+  updateSummary();
+  if(currentPage === "dashboard") renderDashboard();
+  else if(currentPage === "explorer") renderExplorer();
+  else if(currentPage === "alerts") renderAlerts();
+}
 
-    if(typeof soc==="number"){
-      if(soc>50) el.classList.add("border-green-500");
-      else if(soc>20) el.classList.add("border-yellow-500");
-      else el.classList.add("border-red-500");
-    } else {
-      el.classList.add("border-slate-400");
+byId("btnHamburger").addEventListener("click", ()=> byId("sidebar").classList.toggle("open"));
+const sidebar = byId("sidebar");
+
+/* ============================================================
+   SUMMARY / KPIs
+   ============================================================ */
+let doughnutChart = null;
+function updateSummary(){
+  let total=0, normal=0, warn=0, crit=0;
+  state.data.forEach(d=>{
+    if(typeof d.soc === "number"){
+      total++;
+      const s = statusOf(d.soc);
+      if(s==="normal") normal++; else if(s==="warning") warn++; else if(s==="critical") crit++;
     }
+  });
+  byId("kTotal").textContent = total;
+  byId("kNormal").textContent = normal;
+  byId("kWarn").textContent = warn;
+  byId("kCrit").textContent = crit;
+  byId("navAlertBadge").textContent = warn + crit;
+  byId("navAlertBadge").style.display = (warn+crit) > 0 ? "inline-flex" : "none";
+}
 
-    el.innerHTML=`
-      <div class="flex items-center justify-between mb-2">
-        <div class="flex items-center gap-3">
-           <div>
-            <div class="font-semibold">${batt}</div>
-            <div class="text-xs text-slate-500"> -> ${city}/${region}/${zone}</div>
+/* ============================================================
+   PAGE: DASHBOARD
+   ============================================================ */
+function renderDashboard(){
+  let normal=0, warn=0, crit=0, unknown=0;
+  const rows = [];
+  state.data.forEach(d=>{
+    const s = statusOf(d.soc);
+    if(s==="normal") normal++; else if(s==="warning") warn++; else if(s==="critical") crit++; else unknown++;
+    if(typeof d.soc === "number") rows.push(d);
+  });
+
+  const ctx = byId("statusDoughnut");
+  const dataVals = [normal, warn, crit];
+  if(doughnutChart){
+    doughnutChart.data.datasets[0].data = dataVals;
+    doughnutChart.update();
+  } else {
+    doughnutChart = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: ["Normal","Warning","Critical"],
+        datasets: [{ data: dataVals, backgroundColor: ["#3ecf8e","#f0b64c","#ef5c5c"], borderColor: "#171d26", borderWidth:3 }]
+      },
+      options: {
+        cutout: "68%",
+        plugins: { legend: { position:"bottom", labels:{ boxWidth:8, padding:14, font:{ family:"'Inter',sans-serif", size:11 } } } }
+      }
+    });
+  }
+
+  rows.sort((a,b)=>a.soc-b.soc);
+  const low = rows.slice(0,6);
+  const listEl = byId("lowSocList");
+  if(low.length===0){
+    listEl.innerHTML = `<div class="empty-state"><i class="fas fa-battery-empty"></i>Waiting for telemetry&hellip;</div>`;
+  } else {
+    listEl.innerHTML = low.map(d=>{
+      const s = statusOf(d.soc);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line-soft);">
+        <span class="pill ${s}" style="min-width:64px;justify-content:center;">${d.soc}%</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:var(--font-mono);font-size:12px;font-weight:600;">${d.batt}</div>
+          <div style="font-size:10.5px;color:var(--text-dim);">${d.city} / ${d.region} / ${d.zone}</div>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  const feedEl = byId("activityFeed");
+  byId("feedCount").textContent = state.feed.length + " events";
+  if(state.feed.length===0){
+    feedEl.innerHTML = `<div class="empty-state"><i class="fas fa-signal"></i>No messages received yet</div>`;
+  } else {
+    feedEl.innerHTML = state.feed.slice(0,14).map(f=>{
+      const s = statusOf(f.soc);
+      const color = s==="normal" ? "var(--green)" : s==="warning" ? "var(--amber)" : s==="critical" ? "var(--red)" : "var(--text-dim)";
+      return `<div class="feed-row">
+        <span class="feed-dot" style="background:${color};"></span>
+        <span style="font-family:var(--font-mono);font-weight:600;">${f.batt}</span>
+        <span class="feed-loc">${f.city}/${f.region}/${f.zone}</span>
+        <span style="font-family:var(--font-mono);color:var(--text-mid);">${f.soc}% SoC</span>
+        <span class="feed-time">${f.t.toLocaleTimeString()}</span>
+      </div>`;
+    }).join("");
+  }
+}
+
+/* ============================================================
+   PAGE: EXPLORER
+   ============================================================ */
+function setExplorerPath(p){ state.explorerPath = p; renderExplorer(); }
+function renderExplorer(){
+  const p = state.explorerPath;
+  const container = byId("explorerContent");
+  const titles = ["Cities","Regions","Zones","Units"];
+  byId("explorerCrumbTitle").textContent = titles[p.length];
+
+  const crumbHtml = [`<a href="#" data-crumb="0">Cities</a>`];
+  if(p[0]) crumbHtml.push(` / <a href="#" data-crumb="1">${p[0]}</a>`);
+  if(p[1]) crumbHtml.push(` / <a href="#" data-crumb="2">${p[1]}</a>`);
+  if(p[2]) crumbHtml.push(` / <span style="color:var(--text-hi);">${p[2]}</span>`);
+  byId("explorerCrumbs").innerHTML = crumbHtml.join("");
+  byId("explorerCrumbs").querySelectorAll("a").forEach(a=>{
+    a.addEventListener("click", (e)=>{
+      e.preventDefault();
+      const depth = parseInt(a.dataset.crumb,10);
+      setExplorerPath(p.slice(0,depth));
+    });
+  });
+
+  if(p.length===0){
+    container.innerHTML = `<div class="tile-grid">${DEMO.cities.map(city=>
+      `<div class="tile" data-city="${city}"><i class="fas fa-city"></i><div class="tile-name">${city}</div><div class="tile-sub">${DEMO.regions.length} regions</div></div>`
+    ).join("")}</div>`;
+    container.querySelectorAll(".tile").forEach(t=> t.addEventListener("click", ()=> setExplorerPath([t.dataset.city])));
+  } else if(p.length===1){
+    container.innerHTML = `<div class="tile-grid">${DEMO.regions.map(region=>
+      `<div class="tile" data-region="${region}"><i class="fas fa-map-location-dot"></i><div class="tile-name">${region}</div><div class="tile-sub">${p[0]}</div></div>`
+    ).join("")}</div>`;
+    container.querySelectorAll(".tile").forEach(t=> t.addEventListener("click", ()=> setExplorerPath([p[0], t.dataset.region])));
+  } else if(p.length===2){
+    container.innerHTML = `<div class="tile-grid">${DEMO.zones.map(zone=>{
+      const batts = DEMO.battsPerZone[`${p[0]}/${p[1]}/${zone}`] || [];
+      return `<div class="tile" data-zone="${zone}"><i class="fas fa-layer-group"></i><div class="tile-name">Zone ${zone}</div><div class="tile-sub">${batts.length} units</div></div>`;
+    }).join("")}</div>`;
+    container.querySelectorAll(".tile").forEach(t=> t.addEventListener("click", ()=> setExplorerPath([p[0], p[1], t.dataset.zone])));
+  } else if(p.length===3){
+    const batts = DEMO.battsPerZone[`${p[0]}/${p[1]}/${p[2]}`] || [];
+    container.innerHTML = `<div class="batt-grid">${batts.map(batt=>{
+      const k = keyOf(p[0],p[1],p[2],batt);
+      const d = state.data.get(k) || {};
+      const soc = d.soc ?? null, volt = d.voltage ?? "--", curr = d.current ?? "--";
+      const s = statusOf(soc);
+      const segCount = 10;
+      const filled = typeof soc === "number" ? Math.round((soc/100)*segCount) : 0;
+      const segs = Array.from({length:segCount}, (_,i)=> `<div class="seg ${i<filled ? 'on-'+s : ''}"></div>`).join("");
+      return `<div class="batt-card st-${s}" data-key="${k}">
+        <div class="batt-card-top">
+          <div><div class="batt-id">${batt}</div><div class="batt-loc">${p[0]} / ${p[1]} / ${p[2]}</div></div>
+          <span class="pill ${s}">${s}</span>
+        </div>
+        <div class="seg-gauge">${segs}</div>
+        <div class="batt-readout-row">
+          <div class="readout-soc">${soc ?? '--'}<span style="font-size:11px;color:var(--text-dim);">%</span></div>
+          <div class="readout-mini">
+            <div class="r"><div class="rv">${volt}V</div><div class="rl">Volt</div></div>
+            <div class="r"><div class="rv">${curr}A</div><div class="rl">Curr</div></div>
           </div>
         </div>
-        <button class="box-full bg-lime-300  px-4 py-2 flex items-center gap-2" data-k="${k}">
-  <i class="fas fa-bolt"></i> 
-</button>
-      </div>
- <!-- NEW: Horizontal SoC Status Bar -->
-      <div class="relative w-full h-3.5 rounded-md overflow-hidden border border-slate-300 mb-3">
-        <div class="absolute top-0 left-0 h-full transition-all duration-500 ${typeof soc==="number" ? (soc>50 ? "bg-green-500" : soc>20 ? "bg-yellow-500" : "bg-red-500") : "bg-slate-300"}" 
-             style="width:${typeof soc==='number'?soc:0}%"></div>
-        <div class="absolute inset-0 text-center text-[10px] font-bold leading-4">${soc}%</div>
-      </div>
-
-      <div class="grid grid-cols-2 gap-2 text-sm">
-        <div class="bg-indigo-400 p-2 box text-center">
-          <div class="text-xs text-black">Voltage</div>
-          <div class="font-bold">${volt} V</div>
-        </div>
-        <div class="bg-red-400 p-2 box text-center">
-          <div class="text-xs text-black">Current</div>
-          <div class="font-bold">${curr} A</div>
-        </div>
-     </div>`;
-    el.querySelector("button").onclick=()=>openDetail(k);
-    content.appendChild(el);
-  });
+      </div>`;
+    }).join("")}</div>`;
+    container.querySelectorAll(".batt-card").forEach(c=> c.addEventListener("click", ()=> openDetail(c.dataset.key)));
+  }
 }
 
-/* -------- SUMMARY UPDATE -------- */
-function updateSummary(){
-  let total=0,normal=0,warn=0,crit=0;
-  state.data.forEach(d=>{
-    if(typeof d.soc==="number"){total++;
-      if(d.soc>50)normal++;
-      else if(d.soc>20)warn++;
-      else crit++;
-    }
+/* ============================================================
+   PAGE: ALERTS
+   ============================================================ */
+function renderAlerts(){
+  const rows = [];
+  state.data.forEach((d,k)=>{
+    const s = statusOf(d.soc);
+    if(s==="warning" || s==="critical") rows.push({ ...d, key:k, status:s, loc:`${d.city}/${d.region}/${d.zone}` });
   });
-  byId("sumTotal").textContent=total;
-  byId("sumNormal").textContent=normal;
-  byId("sumWarn").textContent=warn;
-  byId("sumCrit").textContent=crit;
-}
 
-/* -------- DETAIL + CHARTS -------- */
-let currentKey=null;let charts={soc:null,volt:null,curr:null};
-function detailOpenFor(k){return currentKey===k;}
+  rows.sort((a,b)=>{
+    const dir = state.sortDir;
+    let av = a[state.sortKey], bv = b[state.sortKey];
+    if(typeof av === "string") return av.localeCompare(bv) * dir;
+    return ((av??0) - (bv??0)) * dir;
+  });
+
+  byId("alertsCount").textContent = rows.length + " unit" + (rows.length===1?"":"s");
+  const body = byId("alertsBody");
+  const empty = byId("alertsEmpty");
+  if(rows.length===0){
+    body.innerHTML = "";
+    empty.style.display = "block";
+  } else {
+    empty.style.display = "none";
+    body.innerHTML = rows.map(d=>`
+      <tr class="row-clickable" data-key="${d.key}">
+        <td class="mono" style="font-weight:600;">${d.batt}</td>
+        <td class="mono" style="color:var(--text-mid);">${d.loc}</td>
+        <td class="mono">${d.soc}%</td>
+        <td class="mono">${d.voltage} V</td>
+        <td class="mono">${d.current} A</td>
+        <td class="mono">${d.temp ?? '--'} &deg;C</td>
+        <td><span class="pill ${d.status}">${d.status}</span></td>
+      </tr>`).join("");
+    body.querySelectorAll("tr").forEach(r=> r.addEventListener("click", ()=> openDetail(r.dataset.key)));
+  }
+}
+document.querySelectorAll("#alertsTable th[data-sort]").forEach(th=>{
+  th.addEventListener("click", ()=>{
+    const key = th.dataset.sort;
+    if(state.sortKey === key) state.sortDir *= -1; else { state.sortKey = key; state.sortDir = 1; }
+    renderAlerts();
+  });
+});
+
+/* ============================================================
+   DETAIL MODAL
+   ============================================================ */
+let currentKey = null;
+let charts = { soc:null, volt:null, curr:null };
+
 function openDetail(k){
-  currentKey=k;
-  const d=state.data.get(k);
-  document.getElementById("detailTitle").textContent="Battery "+k;
-  document.getElementById("detail").classList.remove("hidden");
+  currentKey = k;
+  const d = state.data.get(k);
+  byId("detailTitle").textContent = k.split("/").join(" / ");
+  byId("detailOverlay").classList.add("open");
   updateDetail(d);
   buildCharts(d);
 }
-document.getElementById("btnCloseDetail").onclick=()=>{currentKey=null;document.getElementById("detail").classList.add("hidden");destroyCharts();};
+byId("btnCloseDetail").addEventListener("click", closeDetail);
+byId("detailOverlay").addEventListener("click", (e)=>{ if(e.target.id==="detailOverlay") closeDetail(); });
+function closeDetail(){ currentKey = null; byId("detailOverlay").classList.remove("open"); destroyCharts(); }
 
 function updateDetail(d){
-  if(!d)return;
-  byId("dSoc").textContent=(d.soc??"--")+"%";
-  byId("dVolt").textContent=(d.voltage??"--")+" V";
-  byId("dCurr").textContent=(d.current??"--")+" A";
-  byId("dTemp").textContent=(d.temp??"--")+" °C";
+  if(!d) return;
+  byId("dSoc").textContent = (d.soc ?? "--") + "%";
+  byId("dVolt").textContent = (d.voltage ?? "--") + " V";
+  byId("dCurr").textContent = (d.current ?? "--") + " A";
+  byId("dTemp").innerHTML = (d.temp ?? "--") + " &deg;C";
 
-  const fill=document.getElementById("detailBatteryFill");
-  const txt=document.getElementById("detailBatteryText");
-  const box=document.getElementById("detailBatteryBox");
-
-  txt.textContent=(d.soc??"--")+"%";
-  if(typeof d.soc==="number"){
-    fill.style.width=d.soc+"%";
-    if(d.soc>50){fill.className="absolute top-0 left-0 h-full bg-green-500";box.className="relative w-32 h-14 border-4 border-green-500 rounded-md overflow-hidden";}
-    else if(d.soc>20){fill.className="absolute top-0 left-0 h-full bg-yellow-500";box.className="relative w-32 h-14 border-4 border-yellow-500 rounded-md overflow-hidden";}
-    else {fill.className="absolute top-0 left-0 h-full bg-red-500";box.className="relative w-32 h-14 border-4 border-red-500 rounded-md overflow-hidden";}
-  }
+  const fill = byId("detailBatteryFill");
+  const txt = byId("detailBatteryText");
+  txt.textContent = (d.soc ?? "--") + "%";
+  const s = statusOf(d.soc);
+  const color = s==="normal" ? "#3ecf8e" : s==="warning" ? "#f0b64c" : s==="critical" ? "#ef5c5c" : "#3a4456";
+  if(typeof d.soc === "number") fill.style.width = d.soc + "%";
+  fill.style.background = color;
 
   if(charts.soc){
-    charts.soc.data.labels=d.hist.labels;charts.soc.data.datasets[0].data=d.hist.soc;charts.soc.update();
-    charts.volt.data.labels=d.hist.labels;charts.volt.data.datasets[0].data=d.hist.voltage;charts.volt.update();
-    charts.curr.data.labels=d.hist.labels;charts.curr.data.datasets[0].data=d.hist.current;charts.curr.update();
+    charts.soc.data.labels = d.hist.labels; charts.soc.data.datasets[0].data = d.hist.soc; charts.soc.update();
+    charts.volt.data.labels = d.hist.labels; charts.volt.data.datasets[0].data = d.hist.voltage; charts.volt.update();
+    charts.curr.data.labels = d.hist.labels; charts.curr.data.datasets[0].data = d.hist.current; charts.curr.update();
   }
 }
 
-function buildCharts(d){destroyCharts();
-  charts.soc=new Chart(byId("socChart"),{type:"line",data:{labels:d.hist.labels,datasets:[{label:"SoC %",data:d.hist.soc,fill:true,borderColor:"green"}]}});
-  charts.volt=new Chart(byId("voltChart"),{type:"line",data:{labels:d.hist.labels,datasets:[{label:"Voltage (V)",data:d.hist.voltage,borderColor:"blue"}]}});
-  charts.curr=new Chart(byId("currChart"),{type:"line",data:{labels:d.hist.labels,datasets:[{label:"Current (A)",data:d.hist.current,borderColor:"purple"}]}});
+function chartOpts(title){
+  return {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ display:false }, title:{ display:true, text:title, color:"#a4adbd", font:{ size:10.5, family:"'JetBrains Mono',monospace" } } },
+    scales:{ x:{ ticks:{ display:false }, grid:{ color:"#1d2430" } }, y:{ grid:{ color:"#1d2430" }, ticks:{ font:{ size:9 } } } },
+    elements:{ point:{ radius:0 }, line:{ tension:.3, borderWidth:2 } }
+  };
 }
-function destroyCharts(){["soc","volt","curr"].forEach(k=>{if(charts[k]){charts[k].destroy();charts[k]=null;}});}
-function byId(id){return document.getElementById(id);}
+function buildCharts(d){
+  destroyCharts();
+  charts.soc = new Chart(byId("socChart"), { type:"line", data:{ labels:d.hist.labels, datasets:[{ data:d.hist.soc, borderColor:"#3ecf8e", backgroundColor:"rgba(62,207,142,0.08)", fill:true }] }, options: chartOpts("SoC %") });
+  charts.volt = new Chart(byId("voltChart"), { type:"line", data:{ labels:d.hist.labels, datasets:[{ data:d.hist.voltage, borderColor:"#5b8def", backgroundColor:"rgba(91,141,239,0.08)", fill:true }] }, options: chartOpts("Voltage (V)") });
+  charts.curr = new Chart(byId("currChart"), { type:"line", data:{ labels:d.hist.labels, datasets:[{ data:d.hist.current, borderColor:"#a58bf0", backgroundColor:"rgba(165,139,240,0.08)", fill:true }] }, options: chartOpts("Current (A)") });
+}
+function destroyCharts(){ ["soc","volt","curr"].forEach(k=>{ if(charts[k]){ charts[k].destroy(); charts[k]=null; } }); }
 
-/* -------- DEMO SIM -------- */
-let simTimer=null;
-document.getElementById("btnSim").onclick=()=>{
-  if(simTimer){clearInterval(simTimer);simTimer=null;document.getElementById("btnSim").textContent="Start Simulator";return;}
-  document.getElementById("btnSim").textContent="Stop Simulator";
-  const pub=()=>{const now=Math.floor(Date.now()/1000);
-    DEMO.cities.forEach(city=>DEMO.regions.forEach(region=>DEMO.zones.forEach(zone=>{
-      const batts=DEMO.battsPerZone[`${city}/${region}/${zone}`]||[];
+/* ============================================================
+   SIMULATOR
+   ============================================================ */
+let simTimer = null;
+function toggleSim(){
+  const btns = [byId("btnSim"), byId("btnSimSettings")];
+  if(simTimer){
+    clearInterval(simTimer); simTimer = null;
+    btns.forEach(b=> b.innerHTML = '<i class="fas fa-play"></i> Start Simulator');
+    byId("btnSimSettings").innerHTML = '<i class="fas fa-play"></i> Start';
+    return;
+  }
+  btns.forEach(b=> b.innerHTML = '<i class="fas fa-stop"></i> Stop Simulator');
+  byId("btnSimSettings").innerHTML = '<i class="fas fa-stop"></i> Stop';
+  const pub = ()=>{
+    const now = Math.floor(Date.now()/1000);
+    DEMO.cities.forEach(city=> DEMO.regions.forEach(region=> DEMO.zones.forEach(zone=>{
+      const batts = DEMO.battsPerZone[`${city}/${region}/${zone}`] || [];
       batts.forEach(batt=>{
-        const soc=Math.max(5,Math.min(100,60+Math.round((Math.random()-0.5)*40)));
-        const v=(3.0+(soc/100)*1.2+(Math.random()-0.5)*0.05).toFixed(2);
-        const cur=((Math.random()-0.5)*5).toFixed(2);
-        const temp=(25+Math.random()*10).toFixed(1);
-        const topic=`bms/${city}/${region}/${zone}/${batt}`;
-        const payload=JSON.stringify({voltage:parseFloat(v),current:parseFloat(cur),soc,temp:parseFloat(temp),ts:now});
-        client.publish(topic,payload,{retain:true});
+        const soc = Math.max(5, Math.min(100, 60 + Math.round((Math.random()-0.5)*40)));
+        const v = (3.0 + (soc/100)*1.2 + (Math.random()-0.5)*0.05).toFixed(2);
+        const cur = ((Math.random()-0.5)*5).toFixed(2);
+        const temp = (25 + Math.random()*10).toFixed(1);
+        const topic = `bms/${city}/${region}/${zone}/${batt}`;
+        const payload = JSON.stringify({ voltage: parseFloat(v), current: parseFloat(cur), soc, temp: parseFloat(temp), ts: now });
+        client.publish(topic, payload, { retain:true });
       });
     })));
   };
-  pub();simTimer=setInterval(pub,5000);
-};
+  pub();
+  simTimer = setInterval(pub, 5000);
+}
+byId("btnSim").addEventListener("click", toggleSim);
+byId("btnSimSettings").addEventListener("click", toggleSim);
 
-/* INIT */
-setPath([]);renderConn();render();
+/* ============================================================
+   CLOCK + INIT
+   ============================================================ */
+function tickClock(){ byId("clock").textContent = new Date().toLocaleTimeString(); }
+setInterval(tickClock, 1000); tickClock();
+
+let totalUnits = 0;
+Object.values(DEMO.battsPerZone).forEach(arr=> totalUnits += arr.length);
+byId("fleetSizeNote").textContent = totalUnits + " simulated units across " + DEMO.cities.length + " cities";
+
+renderConn();
+renderCurrentPage();
 </script>
 </body>
 </html>
-
